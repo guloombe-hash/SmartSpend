@@ -9,6 +9,7 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Product, User, UserGoal, ScanHistoryItem } from '../types';
 import { lookupProduct } from '../services/productLookup';
+import { lookupProductByURL } from '../services/urlLookup';
 
 interface AppState {
   // User
@@ -21,6 +22,7 @@ interface AppState {
 
   // Actions
   scanBarcode: (upc: string) => Promise<void>;
+  scanURL: (url: string) => Promise<void>;
   clearScan: () => void;
   recordDecision: (decision: 'bought' | 'skipped') => void;
   addGoal: (goal: Omit<UserGoal, 'id' | 'createdAt'>) => void;
@@ -73,6 +75,27 @@ export const useStore = create<AppState>()(
           set({
             isScanning: false,
             scanError: error.message || 'Failed to look up product.',
+          });
+        }
+      },
+
+      // ─── URL Scan ───
+      scanURL: async (url: string) => {
+        set({ isScanning: true, scanError: null, currentProduct: null });
+
+        try {
+          const product = await lookupProductByURL(url);
+
+          if (!product) {
+            set({ isScanning: false, scanError: 'Could not extract product info from this URL.' });
+            return;
+          }
+
+          set({ isScanning: false, currentProduct: product });
+        } catch (error: any) {
+          set({
+            isScanning: false,
+            scanError: error.message || 'Failed to look up product from URL.',
           });
         }
       },

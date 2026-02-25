@@ -98,11 +98,27 @@ function UPCInputModal({
 function URLInputModal({
   visible,
   onClose,
+  onSubmit,
+  isLoading,
+  error,
 }: {
   visible: boolean;
   onClose: () => void;
+  onSubmit: (url: string) => void;
+  isLoading: boolean;
+  error: string | null;
 }) {
   const [url, setUrl] = useState('');
+
+  const handleSubmit = () => {
+    const trimmed = url.trim();
+    if (!trimmed) return;
+    if (!/^https?:\/\/.+\..+/.test(trimmed)) {
+      Alert.alert('Invalid URL', 'Please enter a valid URL starting with http:// or https://');
+      return;
+    }
+    onSubmit(trimmed);
+  };
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
@@ -115,22 +131,41 @@ function URLInputModal({
           <Text style={modalStyles.title}>Paste Product URL</Text>
           <Text style={modalStyles.subtitle}>Paste a link from any online store</Text>
           <TextInput
-            style={modalStyles.input}
-            placeholder="https://www.amazon.com/..."
+            style={[modalStyles.input, { letterSpacing: 0, fontSize: FONT_SIZE.base }]}
+            placeholder="https://www.amazon.com/dp/..."
             placeholderTextColor={COLORS.text.disabled}
             keyboardType="url"
             autoCapitalize="none"
+            autoCorrect={false}
             value={url}
             onChangeText={setUrl}
             autoFocus
           />
-          <View style={modalStyles.comingSoon}>
-            <Text style={modalStyles.comingSoonIcon}>🚧</Text>
-            <Text style={modalStyles.comingSoonText}>Coming soon in the next update!</Text>
+          {error && (
+            <View style={modalStyles.errorBox}>
+              <Text style={modalStyles.errorText}>{error}</Text>
+            </View>
+          )}
+          <View style={modalStyles.supportedStores}>
+            <Text style={modalStyles.supportedLabel}>Works with:</Text>
+            <Text style={modalStyles.supportedList}>Amazon, Walmart, Target, Best Buy, eBay & more</Text>
           </View>
-          <TouchableOpacity onPress={onClose} style={modalStyles.cancelBtnFull}>
-            <Text style={modalStyles.cancelText}>Close</Text>
-          </TouchableOpacity>
+          <View style={modalStyles.buttons}>
+            <TouchableOpacity onPress={onClose} style={modalStyles.cancelBtn}>
+              <Text style={modalStyles.cancelText}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={handleSubmit}
+              style={[modalStyles.submitBtn, !url.trim() && { opacity: 0.4 }]}
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <ActivityIndicator color={COLORS.bg.primary} size="small" />
+              ) : (
+                <Text style={modalStyles.submitText}>Analyze</Text>
+              )}
+            </TouchableOpacity>
+          </View>
         </View>
       </KeyboardAvoidingView>
     </Modal>
@@ -139,15 +174,16 @@ function URLInputModal({
 
 export default function HomeScreen() {
   const navigation = useNavigation<NavigationProp>();
-  const { user, scanBarcode, isScanning, currentProduct, clearScan } = useStore();
+  const { user, scanBarcode, scanURL, isScanning, scanError, currentProduct, clearScan } = useStore();
   const activeGoal = user.goals[0];
   const [showUPCModal, setShowUPCModal] = useState(false);
   const [showURLModal, setShowURLModal] = useState(false);
 
-  // Navigate to result when product found via UPC input
+  // Navigate to result when product found via UPC/URL input
   useEffect(() => {
     if (currentProduct && !isScanning) {
       setShowUPCModal(false);
+      setShowURLModal(false);
       navigation.navigate('ProductResult', { product: currentProduct });
     }
   }, [currentProduct, isScanning]);
@@ -296,7 +332,10 @@ export default function HomeScreen() {
       />
       <URLInputModal
         visible={showURLModal}
-        onClose={() => setShowURLModal(false)}
+        onClose={() => { setShowURLModal(false); clearScan(); }}
+        onSubmit={(url) => scanURL(url)}
+        isLoading={isScanning}
+        error={scanError}
       />
     </View>
   );
@@ -622,6 +661,35 @@ const modalStyles = StyleSheet.create({
   comingSoonText: {
     fontSize: FONT_SIZE.md,
     color: COLORS.brand.green,
+    ...FONTS.caption,
+  },
+  errorBox: {
+    backgroundColor: 'rgba(255,59,48,0.08)',
+    borderRadius: RADIUS.lg,
+    padding: SPACING.md,
+    marginBottom: SPACING.md,
+    borderWidth: 1,
+    borderColor: 'rgba(255,59,48,0.15)',
+  },
+  errorText: {
+    fontSize: FONT_SIZE.sm,
+    color: COLORS.accent.danger,
+    ...FONTS.caption,
+    textAlign: 'center',
+  },
+  supportedStores: {
+    marginBottom: SPACING.xl,
+  },
+  supportedLabel: {
+    fontSize: FONT_SIZE.xs,
+    ...FONTS.mono,
+    color: COLORS.text.muted,
+    letterSpacing: 1,
+    marginBottom: SPACING.xs,
+  },
+  supportedList: {
+    fontSize: FONT_SIZE.sm,
+    color: COLORS.text.tertiary,
     ...FONTS.caption,
   },
 });
