@@ -23,6 +23,7 @@ import {
 import type { ScanHistoryItem } from '../types';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import * as ImagePicker from 'expo-image-picker';
 import { useStore } from '../services/store';
 import { COLORS, SPACING, RADIUS, FONTS, FONT_SIZE } from '../constants/theme';
 import type { RootStackParamList } from '../types';
@@ -172,18 +173,115 @@ function URLInputModal({
   );
 }
 
+// ─── Photo Picker Modal ───
+function PhotoPickerModal({
+  visible,
+  onClose,
+  onPickImage,
+  isLoading,
+  error,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  onPickImage: (uri: string) => void;
+  isLoading: boolean;
+  error: string | null;
+}) {
+  const takePhoto = async () => {
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission Needed', 'Camera access is required to take photos.');
+      return;
+    }
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ['images'],
+      quality: 0.8,
+      base64: false,
+    });
+    if (!result.canceled && result.assets[0]) {
+      onPickImage(result.assets[0].uri);
+    }
+  };
+
+  const pickFromGallery = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission Needed', 'Gallery access is required to select photos.');
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      quality: 0.8,
+      base64: false,
+    });
+    if (!result.canceled && result.assets[0]) {
+      onPickImage(result.assets[0].uri);
+    }
+  };
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <View style={modalStyles.overlay}>
+        <TouchableOpacity style={modalStyles.backdrop} activeOpacity={1} onPress={isLoading ? undefined : onClose} />
+        <View style={modalStyles.box}>
+          {isLoading ? (
+            <View style={{ alignItems: 'center', paddingVertical: SPACING['3xl'] }}>
+              <ActivityIndicator size="large" color={COLORS.brand.cyan} />
+              <Text style={[modalStyles.title, { marginTop: SPACING.xl, fontSize: FONT_SIZE.xl }]}>
+                Analyzing Product...
+              </Text>
+              <Text style={modalStyles.subtitle}>AI is identifying your product</Text>
+            </View>
+          ) : (
+            <>
+              <Text style={modalStyles.title}>Scan Product Photo</Text>
+              <Text style={modalStyles.subtitle}>Take a photo or choose from your gallery</Text>
+              {error && (
+                <View style={modalStyles.errorBox}>
+                  <Text style={modalStyles.errorText}>{error}</Text>
+                </View>
+              )}
+              <TouchableOpacity onPress={takePhoto} style={photoModalStyles.optionBtn}>
+                <Text style={photoModalStyles.optionIcon}>📸</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={photoModalStyles.optionTitle}>Take a Photo</Text>
+                  <Text style={photoModalStyles.optionDesc}>Use camera to capture the product</Text>
+                </View>
+                <Text style={photoModalStyles.arrow}>›</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={pickFromGallery} style={photoModalStyles.optionBtn}>
+                <Text style={photoModalStyles.optionIcon}>🖼️</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={photoModalStyles.optionTitle}>Choose from Gallery</Text>
+                  <Text style={photoModalStyles.optionDesc}>Select an existing photo</Text>
+                </View>
+                <Text style={photoModalStyles.arrow}>›</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={onClose} style={[modalStyles.cancelBtn, { marginTop: SPACING.lg }]}>
+                <Text style={modalStyles.cancelText}>Cancel</Text>
+              </TouchableOpacity>
+            </>
+          )}
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
 export default function HomeScreen() {
   const navigation = useNavigation<NavigationProp>();
-  const { user, scanBarcode, scanURL, isScanning, scanError, currentProduct, clearScan } = useStore();
+  const { user, scanBarcode, scanURL, scanPhoto, isScanning, scanError, currentProduct, clearScan } = useStore();
   const activeGoal = user.goals[0];
   const [showUPCModal, setShowUPCModal] = useState(false);
   const [showURLModal, setShowURLModal] = useState(false);
+  const [showPhotoModal, setShowPhotoModal] = useState(false);
 
   // Navigate to result when product found via UPC/URL input
   useEffect(() => {
     if (currentProduct && !isScanning) {
       setShowUPCModal(false);
       setShowURLModal(false);
+      setShowPhotoModal(false);
       navigation.navigate('ProductResult', { product: currentProduct });
     }
   }, [currentProduct, isScanning]);
@@ -275,7 +373,7 @@ export default function HomeScreen() {
           {/* Quick Actions */}
           <View style={styles.quickActions}>
             {[
-              { icon: '📷', label: 'Photo', onPress: () => navigation.navigate('Scanner') },
+              { icon: '📷', label: 'Photo', onPress: () => setShowPhotoModal(true) },
               { icon: '🔗', label: 'URL', onPress: () => setShowURLModal(true) },
               { icon: '⌨️', label: 'UPC', onPress: () => setShowUPCModal(true) },
             ].map((item, i) => (
@@ -334,6 +432,13 @@ export default function HomeScreen() {
         visible={showURLModal}
         onClose={() => { setShowURLModal(false); clearScan(); }}
         onSubmit={(url) => scanURL(url)}
+        isLoading={isScanning}
+        error={scanError}
+      />
+      <PhotoPickerModal
+        visible={showPhotoModal}
+        onClose={() => { setShowPhotoModal(false); clearScan(); }}
+        onPickImage={(uri) => scanPhoto(uri)}
         isLoading={isScanning}
         error={scanError}
       />
@@ -691,5 +796,38 @@ const modalStyles = StyleSheet.create({
     fontSize: FONT_SIZE.sm,
     color: COLORS.text.tertiary,
     ...FONTS.caption,
+  },
+});
+
+// ─── Photo Modal Styles ───
+const photoModalStyles = StyleSheet.create({
+  optionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.overlay.light,
+    borderRadius: RADIUS.lg,
+    padding: SPACING.lg,
+    borderWidth: 1,
+    borderColor: COLORS.border.light,
+    marginBottom: SPACING.md,
+    gap: SPACING.lg,
+  },
+  optionIcon: {
+    fontSize: 28,
+  },
+  optionTitle: {
+    fontSize: FONT_SIZE.lg,
+    ...FONTS.subheading,
+    color: COLORS.text.primary,
+  },
+  optionDesc: {
+    fontSize: FONT_SIZE.sm,
+    color: COLORS.text.muted,
+    marginTop: 2,
+  },
+  arrow: {
+    fontSize: 24,
+    color: COLORS.text.disabled,
+    ...FONTS.body,
   },
 });

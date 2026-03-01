@@ -147,7 +147,7 @@ async function lookupViaOpenFoodFacts(upc: string): Promise<Product | null> {
 }
 
 // ─── Opportunity Cost Calculator ───
-function calculateEquivalents(price: number) {
+export function calculateEquivalents(price: number) {
   if (price <= 0) return [];
 
   return Object.values(EQUIVALENTS).map((eq) => ({

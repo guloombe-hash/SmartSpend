@@ -5,7 +5,7 @@
  * ─────────────────────────────────────────────
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -14,70 +14,15 @@ import {
   TouchableOpacity,
   Platform,
   StatusBar,
-  Animated,
+  ActivityIndicator,
+  Modal,
+  TextInput,
+  KeyboardAvoidingView,
+  Alert,
 } from 'react-native';
 import { useStore } from '../services/store';
 import { COLORS, SPACING, RADIUS, FONTS, FONT_SIZE } from '../constants/theme';
 import type { GoalTemplate } from '../types';
-
-// ─── Mock Community Templates ───
-const COMMUNITY_TEMPLATES: GoalTemplate[] = [
-  {
-    id: 't1',
-    authorId: 'u1',
-    authorName: 'Alex K.',
-    title: 'Tokyo Trip Fund',
-    icon: '🗼',
-    skippedItem: 'Impulse Amazon purchases',
-    investedIn: 'Japan travel',
-    targetAmount: 4500,
-    story:
-      'Skipped 3 Amazon purchases a week for 8 months. Finally booked my flight!',
-    copiedCount: 1247,
-    createdAt: '2025-08-01T00:00:00Z',
-  },
-  {
-    id: 't2',
-    authorId: 'u2',
-    authorName: 'Maya R.',
-    title: 'MacBook Pro Fund',
-    icon: '💻',
-    skippedItem: 'Daily Starbucks',
-    investedIn: 'New laptop for freelancing',
-    targetAmount: 2499,
-    story: 'Every time I skipped a $7 latte, I moved it here. 14 months later...',
-    copiedCount: 892,
-    createdAt: '2025-06-15T00:00:00Z',
-  },
-  {
-    id: 't3',
-    authorId: 'u3',
-    authorName: 'Jordan T.',
-    title: 'Emergency Fund',
-    icon: '🛡️',
-    skippedItem: 'Eating out for lunch',
-    investedIn: '3-month safety net',
-    targetAmount: 5000,
-    story:
-      'Brought lunch from home instead of spending $15 daily. Saved $3k in 7 months.',
-    copiedCount: 2103,
-    createdAt: '2025-05-20T00:00:00Z',
-  },
-  {
-    id: 't4',
-    authorId: 'u4',
-    authorName: 'Sam W.',
-    title: 'Gym Equipment',
-    icon: '🏋️',
-    skippedItem: 'Gaming microtransactions',
-    investedIn: 'Home gym setup',
-    targetAmount: 800,
-    story:
-      'Cancelled my FIFA Ultimate Team habit. Got a power rack in 4 months.',
-    copiedCount: 445,
-    createdAt: '2025-09-10T00:00:00Z',
-  },
-];
 
 // ─── Trending Badge ───
 function TrendBadge({ count }: { count: number }) {
@@ -95,11 +40,17 @@ function TrendBadge({ count }: { count: number }) {
 function TemplateCard({
   template,
   onCopy,
+  onLike,
   isCopied,
+  isLiked,
+  likeCount,
 }: {
   template: GoalTemplate;
   onCopy: (t: GoalTemplate) => void;
+  onLike: (id: string) => void;
   isCopied: boolean;
+  isLiked: boolean;
+  likeCount: number;
 }) {
   return (
     <View style={styles.templateCard}>
@@ -134,36 +85,224 @@ function TemplateCard({
         </View>
       </View>
 
-      {/* Copy Button */}
-      <TouchableOpacity
-        onPress={() => !isCopied && onCopy(template)}
-        style={[styles.copyBtn, isCopied && styles.copyBtnDone]}
-        activeOpacity={0.8}
-      >
-        <Text style={[styles.copyBtnText, isCopied && styles.copyBtnDoneText]}>
-          {isCopied ? '✓ Goal Added!' : 'Copy This Goal'}
-        </Text>
-      </TouchableOpacity>
+      {/* Action Row: Like + Copy */}
+      <View style={styles.actionRow}>
+        <TouchableOpacity
+          onPress={() => onLike(template.id)}
+          style={[styles.likeBtn, isLiked && styles.likeBtnActive]}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.likeBtnIcon}>{isLiked ? '❤️' : '🤍'}</Text>
+          <Text style={[styles.likeBtnText, isLiked && styles.likeBtnTextActive]}>
+            {likeCount}
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          onPress={() => !isCopied && onCopy(template)}
+          style={[styles.copyBtn, isCopied && styles.copyBtnDone]}
+          activeOpacity={0.8}
+        >
+          <Text style={[styles.copyBtnText, isCopied && styles.copyBtnDoneText]}>
+            {isCopied ? '✓ Goal Added!' : 'Copy This Goal'}
+          </Text>
+        </TouchableOpacity>
+      </View>
     </View>
+  );
+}
+
+// ─── Share Modal ───
+function ShareModal({
+  visible,
+  onClose,
+  onPublish,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  onPublish: (data: {
+    title: string;
+    icon: string;
+    skippedItem: string;
+    investedIn: string;
+    targetAmount: number;
+    story: string;
+  }) => void;
+}) {
+  const [title, setTitle] = useState('');
+  const [icon, setIcon] = useState('🎯');
+  const [skippedItem, setSkippedItem] = useState('');
+  const [investedIn, setInvestedIn] = useState('');
+  const [targetAmount, setTargetAmount] = useState('');
+  const [story, setStory] = useState('');
+
+  const handleSubmit = () => {
+    if (!title.trim() || !skippedItem.trim() || !story.trim() || !targetAmount) {
+      Alert.alert('Missing Fields', 'Please fill in all required fields.');
+      return;
+    }
+    onPublish({
+      title: title.trim(),
+      icon,
+      skippedItem: skippedItem.trim(),
+      investedIn: investedIn.trim(),
+      targetAmount: Number(targetAmount),
+      story: story.trim(),
+    });
+    // Reset
+    setTitle('');
+    setIcon('🎯');
+    setSkippedItem('');
+    setInvestedIn('');
+    setTargetAmount('');
+    setStory('');
+    onClose();
+  };
+
+  const ICON_OPTIONS = ['🎯', '🗼', '💻', '🛡️', '🏋️', '✈️', '🎓', '🚗', '🏠', '💎'];
+
+  return (
+    <Modal visible={visible} animationType="slide" transparent>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.modalOverlay}
+      >
+        <View style={styles.modalContent}>
+          <View style={styles.modalHandle} />
+          <Text style={styles.modalTitle}>Share Your Goal</Text>
+          <Text style={styles.modalSubtitle}>
+            Inspire the community with your savings story
+          </Text>
+
+          <ScrollView showsVerticalScrollIndicator={false} style={styles.modalScroll}>
+            {/* Icon Picker */}
+            <Text style={styles.inputLabel}>Icon</Text>
+            <View style={styles.iconPicker}>
+              {ICON_OPTIONS.map((e) => (
+                <TouchableOpacity
+                  key={e}
+                  onPress={() => setIcon(e)}
+                  style={[styles.iconOption, icon === e && styles.iconOptionSelected]}
+                >
+                  <Text style={{ fontSize: 22 }}>{e}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* Title */}
+            <Text style={styles.inputLabel}>Goal Title *</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="e.g., Tokyo Trip Fund"
+              placeholderTextColor={COLORS.text.muted}
+              value={title}
+              onChangeText={setTitle}
+            />
+
+            {/* Skipped Item */}
+            <Text style={styles.inputLabel}>What did you skip? *</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="e.g., Daily Starbucks"
+              placeholderTextColor={COLORS.text.muted}
+              value={skippedItem}
+              onChangeText={setSkippedItem}
+            />
+
+            {/* Invested In */}
+            <Text style={styles.inputLabel}>Invested in</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="e.g., Japan travel"
+              placeholderTextColor={COLORS.text.muted}
+              value={investedIn}
+              onChangeText={setInvestedIn}
+            />
+
+            {/* Target Amount */}
+            <Text style={styles.inputLabel}>Target Amount ($) *</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="e.g., 4500"
+              placeholderTextColor={COLORS.text.muted}
+              value={targetAmount}
+              onChangeText={setTargetAmount}
+              keyboardType="numeric"
+            />
+
+            {/* Story */}
+            <Text style={styles.inputLabel}>Your Story *</Text>
+            <TextInput
+              style={[styles.input, styles.inputMultiline]}
+              placeholder="Tell the community how you did it..."
+              placeholderTextColor={COLORS.text.muted}
+              value={story}
+              onChangeText={setStory}
+              multiline
+              numberOfLines={3}
+            />
+
+            {/* Buttons */}
+            <TouchableOpacity style={styles.publishBtn} onPress={handleSubmit} activeOpacity={0.8}>
+              <Text style={styles.publishBtnText}>Publish to Community</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.cancelBtn} onPress={onClose} activeOpacity={0.8}>
+              <Text style={styles.cancelBtnText}>Cancel</Text>
+            </TouchableOpacity>
+          </ScrollView>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
   );
 }
 
 // ─── Main Screen ───
 export default function SocialScreen() {
-  const { addGoal } = useStore();
+  const {
+    authUser,
+    goalTemplates,
+    isLoadingTemplates,
+    loadTemplates,
+    copyTemplate,
+    toggleTemplateLike,
+    publishTemplate,
+  } = useStore();
+
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [showShareModal, setShowShareModal] = useState(false);
+
+  useEffect(() => {
+    loadTemplates();
+  }, []);
 
   const handleCopy = (template: GoalTemplate) => {
-    addGoal({
-      title: template.title,
-      icon: template.icon,
-      targetAmount: template.targetAmount,
-      savedAmount: 0,
-      templateId: template.id,
-    });
+    copyTemplate(template);
     setCopiedId(template.id);
     setTimeout(() => setCopiedId(null), 2000);
   };
+
+  const handlePublish = async (data: {
+    title: string;
+    icon: string;
+    skippedItem: string;
+    investedIn: string;
+    targetAmount: number;
+    story: string;
+  }) => {
+    await publishTemplate(data);
+    Alert.alert('Published!', 'Your goal has been shared with the community.');
+  };
+
+  const uid = authUser?.uid || '';
+
+  // Compute stats from real data
+  const totalGoals = goalTemplates.length;
+  const totalCopies = goalTemplates.reduce((sum, t) => sum + t.copiedCount, 0);
+  const totalTargetSaved = goalTemplates.reduce((sum, t) => sum + t.targetAmount * t.copiedCount, 0);
+
+  const formatCount = (n: number) =>
+    n >= 1000000 ? `${(n / 1000000).toFixed(1)}M` : n >= 1000 ? `${(n / 1000).toFixed(1)}k` : n.toString();
 
   return (
     <View style={styles.container}>
@@ -180,52 +319,80 @@ export default function SocialScreen() {
       {/* ─── Stats Banner ─── */}
       <View style={styles.statsBanner}>
         <View style={styles.bannerStat}>
-          <Text style={styles.bannerValue}>12.4k</Text>
-          <Text style={styles.bannerLabel}>Goals Created</Text>
+          <Text style={styles.bannerValue}>{formatCount(totalGoals)}</Text>
+          <Text style={styles.bannerLabel}>Goals Shared</Text>
         </View>
         <View style={styles.bannerDivider} />
         <View style={styles.bannerStat}>
           <Text style={[styles.bannerValue, { color: COLORS.brand.cyan }]}>
-            $2.1M
+            ${formatCount(totalTargetSaved)}
           </Text>
-          <Text style={styles.bannerLabel}>Collectively Saved</Text>
+          <Text style={styles.bannerLabel}>Target Savings</Text>
         </View>
         <View style={styles.bannerDivider} />
         <View style={styles.bannerStat}>
           <Text style={[styles.bannerValue, { color: COLORS.accent.gold }]}>
-            89%
+            {formatCount(totalCopies)}
           </Text>
-          <Text style={styles.bannerLabel}>Goal Rate</Text>
+          <Text style={styles.bannerLabel}>Total Copies</Text>
         </View>
       </View>
 
-      {/* ─── Section Title ─── */}
+      {/* ─── Section Title + Share Button ─── */}
       <View style={styles.sectionRow}>
-        <Text style={styles.sectionTitle}>🏆 Trending Goals</Text>
-        <TouchableOpacity>
-          <Text style={styles.sectionMore}>See all</Text>
+        <Text style={styles.sectionTitle}>Trending Goals</Text>
+        <TouchableOpacity onPress={() => setShowShareModal(true)} style={styles.shareBtn}>
+          <Text style={styles.shareBtnText}>+ Share My Goal</Text>
         </TouchableOpacity>
       </View>
 
       {/* ─── Template List ─── */}
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {COMMUNITY_TEMPLATES.map((t) => (
-          <TemplateCard key={t.id} template={t} onCopy={handleCopy} isCopied={copiedId === t.id} />
-        ))}
-
-        {/* Coming Soon */}
-        <View style={styles.comingSoon}>
-          <Text style={styles.comingSoonIcon}>🚀</Text>
-          <Text style={styles.comingSoonTitle}>More features coming soon</Text>
-          <Text style={styles.comingSoonText}>
-            Follow friends, share your wins, and compete on savings leaderboards.
-          </Text>
+      {isLoadingTemplates ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={COLORS.brand.cyan} />
+          <Text style={styles.loadingText}>Loading community goals...</Text>
         </View>
-      </ScrollView>
+      ) : goalTemplates.length === 0 ? (
+        <View style={styles.emptyContainer}>
+          <Text style={styles.emptyIcon}>📭</Text>
+          <Text style={styles.emptyTitle}>No goals yet</Text>
+          <Text style={styles.emptyText}>Be the first to share your savings story!</Text>
+        </View>
+      ) : (
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          {goalTemplates.map((t) => (
+            <TemplateCard
+              key={t.id}
+              template={t}
+              onCopy={handleCopy}
+              onLike={toggleTemplateLike}
+              isCopied={copiedId === t.id}
+              isLiked={t.likedBy?.includes(uid) || false}
+              likeCount={t.likedBy?.length || 0}
+            />
+          ))}
+
+          {/* Coming Soon */}
+          <View style={styles.comingSoon}>
+            <Text style={styles.comingSoonIcon}>🚀</Text>
+            <Text style={styles.comingSoonTitle}>More features coming soon</Text>
+            <Text style={styles.comingSoonText}>
+              Follow friends, share your wins, and compete on savings leaderboards.
+            </Text>
+          </View>
+        </ScrollView>
+      )}
+
+      {/* ─── Share Modal ─── */}
+      <ShareModal
+        visible={showShareModal}
+        onClose={() => setShowShareModal(false)}
+        onPublish={handlePublish}
+      />
     </View>
   );
 }
@@ -305,10 +472,48 @@ const styles = StyleSheet.create({
     ...FONTS.heading,
     color: COLORS.text.primary,
   },
-  sectionMore: {
+  shareBtn: {
+    backgroundColor: 'rgba(57,255,20,0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(57,255,20,0.25)',
+    borderRadius: RADIUS.full,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.xs,
+  },
+  shareBtnText: {
     fontSize: FONT_SIZE.sm,
-    color: COLORS.brand.cyan,
-    ...FONTS.caption,
+    color: COLORS.brand.green,
+    ...FONTS.subheading,
+  },
+
+  // ─── Loading / Empty ───
+  loadingContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: SPACING.md,
+  },
+  loadingText: {
+    fontSize: FONT_SIZE.md,
+    color: COLORS.text.muted,
+  },
+  emptyContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: SPACING['3xl'],
+  },
+  emptyIcon: { fontSize: 48, marginBottom: SPACING.lg },
+  emptyTitle: {
+    fontSize: FONT_SIZE.xl,
+    ...FONTS.heading,
+    color: COLORS.text.secondary,
+    marginBottom: SPACING.sm,
+  },
+  emptyText: {
+    fontSize: FONT_SIZE.md,
+    color: COLORS.text.muted,
+    textAlign: 'center',
   },
 
   // ─── Scroll ───
@@ -417,7 +622,40 @@ const styles = StyleSheet.create({
     color: COLORS.text.secondary,
     textAlign: 'center',
   },
+
+  // ─── Action Row ───
+  actionRow: {
+    flexDirection: 'row',
+    gap: SPACING.md,
+  },
+  likeBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: SPACING.md,
+    paddingHorizontal: SPACING.lg,
+    borderRadius: RADIUS.lg,
+    backgroundColor: COLORS.overlay.light,
+    borderWidth: 1,
+    borderColor: COLORS.border.subtle,
+  },
+  likeBtnActive: {
+    backgroundColor: 'rgba(255,59,48,0.08)',
+    borderColor: 'rgba(255,59,48,0.2)',
+  },
+  likeBtnIcon: {
+    fontSize: 16,
+  },
+  likeBtnText: {
+    fontSize: FONT_SIZE.sm,
+    ...FONTS.mono,
+    color: COLORS.text.muted,
+  },
+  likeBtnTextActive: {
+    color: '#FF3B30',
+  },
   copyBtn: {
+    flex: 1,
     paddingVertical: SPACING.md,
     borderRadius: RADIUS.lg,
     alignItems: 'center',
@@ -456,5 +694,105 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 20,
     maxWidth: 260,
+  },
+
+  // ─── Modal ───
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0,0,0,0.6)',
+  },
+  modalContent: {
+    backgroundColor: COLORS.bg.secondary,
+    borderTopLeftRadius: RADIUS['2xl'],
+    borderTopRightRadius: RADIUS['2xl'],
+    paddingHorizontal: SPACING['2xl'],
+    paddingBottom: Platform.OS === 'ios' ? 40 : 24,
+    maxHeight: '85%',
+  },
+  modalHandle: {
+    width: 40,
+    height: 4,
+    backgroundColor: COLORS.border.light,
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginTop: SPACING.md,
+    marginBottom: SPACING.lg,
+  },
+  modalTitle: {
+    fontSize: FONT_SIZE['2xl'],
+    ...FONTS.heading,
+    color: COLORS.text.primary,
+    marginBottom: SPACING.xs,
+  },
+  modalSubtitle: {
+    fontSize: FONT_SIZE.md,
+    color: COLORS.text.muted,
+    marginBottom: SPACING.xl,
+  },
+  modalScroll: {
+    flexGrow: 0,
+  },
+  inputLabel: {
+    fontSize: FONT_SIZE.sm,
+    ...FONTS.mono,
+    color: COLORS.text.muted,
+    letterSpacing: 1,
+    marginBottom: SPACING.xs,
+    marginTop: SPACING.md,
+  },
+  input: {
+    backgroundColor: COLORS.bg.primary,
+    borderRadius: RADIUS.lg,
+    borderWidth: 1,
+    borderColor: COLORS.border.subtle,
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.md,
+    fontSize: FONT_SIZE.base,
+    color: COLORS.text.primary,
+  },
+  inputMultiline: {
+    minHeight: 80,
+    textAlignVertical: 'top',
+  },
+  iconPicker: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: SPACING.sm,
+  },
+  iconOption: {
+    width: 44,
+    height: 44,
+    borderRadius: RADIUS.md,
+    backgroundColor: COLORS.overlay.light,
+    borderWidth: 1,
+    borderColor: COLORS.border.subtle,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  iconOptionSelected: {
+    borderColor: COLORS.brand.cyan,
+    backgroundColor: 'rgba(0,212,255,0.1)',
+  },
+  publishBtn: {
+    marginTop: SPACING.xl,
+    paddingVertical: SPACING.lg,
+    borderRadius: RADIUS.lg,
+    alignItems: 'center',
+    backgroundColor: COLORS.brand.green,
+  },
+  publishBtnText: {
+    fontSize: FONT_SIZE.base,
+    ...FONTS.subheading,
+    color: COLORS.bg.primary,
+  },
+  cancelBtn: {
+    marginTop: SPACING.md,
+    paddingVertical: SPACING.md,
+    alignItems: 'center',
+  },
+  cancelBtnText: {
+    fontSize: FONT_SIZE.base,
+    color: COLORS.text.muted,
   },
 });

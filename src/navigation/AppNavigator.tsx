@@ -3,7 +3,8 @@
  *
  * Structure:
  *   RootStack
- *     └── MainTabs (Bottom Tab Navigator)
+ *     └── Auth           (login/signup — shown when not authenticated)
+ *     └── MainTabs (Bottom Tab Navigator — shown when authenticated)
  *           ├── Home
  *           ├── Goals
  *           ├── Social
@@ -12,14 +13,16 @@
  *     └── ProductResult
  */
 
-import React from 'react';
-import { Text, View, Platform } from 'react-native';
+import React, { useEffect } from 'react';
+import { Text, View, Platform, ActivityIndicator } from 'react-native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { NavigationContainer } from '@react-navigation/native';
 import type { RootStackParamList, MainTabParamList } from '../types';
-import { COLORS, FONT_SIZE, FONTS, SPACING } from '../constants/theme';
+import { COLORS, FONT_SIZE, SPACING } from '../constants/theme';
+import { useStore } from '../services/store';
 
+import AuthScreen from '../screens/AuthScreen';
 import HomeScreen from '../screens/HomeScreen';
 import ScannerScreen from '../screens/ScannerScreen';
 import ProductResultScreen from '../screens/ProductResultScreen';
@@ -52,6 +55,24 @@ function TabIcon({
         }}
       >
         {label}
+      </Text>
+    </View>
+  );
+}
+
+// ─── Loading Screen ───
+function LoadingScreen() {
+  return (
+    <View style={{
+      flex: 1,
+      backgroundColor: COLORS.bg.primary,
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 16,
+    }}>
+      <ActivityIndicator size="large" color={COLORS.brand.green} />
+      <Text style={{ color: COLORS.text.muted, fontSize: FONT_SIZE.md }}>
+        Loading...
       </Text>
     </View>
   );
@@ -116,6 +137,22 @@ function MainTabs() {
 
 // ─── Root Stack Navigator ───
 export default function AppNavigator() {
+  const { authUser, isAuthInitialized, initAuthListener } = useStore();
+
+  useEffect(() => {
+    const unsubscribe = initAuthListener();
+    return unsubscribe;
+  }, []);
+
+  // Show loading while Firebase checks auth state
+  if (!isAuthInitialized) {
+    return (
+      <NavigationContainer>
+        <LoadingScreen />
+      </NavigationContainer>
+    );
+  }
+
   return (
     <NavigationContainer>
       <Stack.Navigator
@@ -124,17 +161,27 @@ export default function AppNavigator() {
           contentStyle: { backgroundColor: COLORS.bg.primary },
         }}
       >
-        <Stack.Screen name="MainTabs" component={MainTabs} />
-        <Stack.Screen
-          name="Scanner"
-          component={ScannerScreen}
-          options={{ animation: 'slide_from_bottom' }}
-        />
-        <Stack.Screen
-          name="ProductResult"
-          component={ProductResultScreen}
-          options={{ animation: 'slide_from_right' }}
-        />
+        {authUser ? (
+          <>
+            <Stack.Screen name="MainTabs" component={MainTabs} />
+            <Stack.Screen
+              name="Scanner"
+              component={ScannerScreen}
+              options={{ animation: 'slide_from_bottom' }}
+            />
+            <Stack.Screen
+              name="ProductResult"
+              component={ProductResultScreen}
+              options={{ animation: 'slide_from_right' }}
+            />
+          </>
+        ) : (
+          <Stack.Screen
+            name="Auth"
+            component={AuthScreen}
+            options={{ animation: 'fade' }}
+          />
+        )}
       </Stack.Navigator>
     </NavigationContainer>
   );

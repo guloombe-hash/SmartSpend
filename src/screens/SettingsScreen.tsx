@@ -137,7 +137,7 @@ function EditBudgetModal({
 
 // ─── Main Screen ───
 export default function SettingsScreen() {
-  const { user, updateBudget } = useStore();
+  const { user, authUser, updateBudget, signOut } = useStore();
   const [showBudgetModal, setShowBudgetModal] = useState(false);
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [hapticEnabled, setHapticEnabled] = useState(true);
@@ -164,9 +164,9 @@ export default function SettingsScreen() {
           <View style={styles.avatarCircle}>
             <Text style={{ fontSize: 32 }}>👤</Text>
           </View>
-          <View>
-            <Text style={styles.profileName}>{user.name}</Text>
-            <Text style={styles.profileId}>User ID: {user.id}</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.profileName}>{user.name || 'User'}</Text>
+            <Text style={styles.profileId}>{user.email || authUser?.email || ''}</Text>
           </View>
         </View>
 
@@ -282,6 +282,33 @@ export default function SettingsScreen() {
           <SettingRow icon="📄" label="Terms of Service" onPress={() => {}} />
           <View style={styles.divider} />
           <SettingRow icon="⭐" label="Rate SmartSpend" onPress={() => {}} />
+        </View>
+
+        {/* ─── Account Section ─── */}
+        <SectionHeader title="ACCOUNT" />
+        <View style={styles.settingGroup}>
+          <SettingRow
+            icon="📧"
+            label="Email"
+            value={user.email || authUser?.email || ''}
+          />
+          {user.createdAt && (
+            <>
+              <View style={styles.divider} />
+              <SettingRow
+                icon="📅"
+                label="Member Since"
+                value={new Date(user.createdAt).toLocaleDateString()}
+              />
+            </>
+          )}
+          <View style={styles.divider} />
+          <SettingRow
+            icon="🚪"
+            label="Sign Out"
+            danger
+            onPress={() => signOut()}
+          />
         </View>
 
         {/* ─── Version ─── */}

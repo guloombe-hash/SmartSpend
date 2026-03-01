@@ -49,12 +49,16 @@ export interface GoalTemplate {
   targetAmount: number;
   story: string;
   copiedCount: number;
+  likedBy: string[];
   createdAt: string;
 }
 
 export interface User {
   id: string;
   name: string;
+  email?: string;
+  photoUrl?: string;
+  createdAt?: string;
   monthlyBudget: number;
   spent: number;
   goals: UserGoal[];
@@ -89,6 +93,7 @@ export interface BarcodeLookupResponse {
 
 // ─── Navigation Types ───
 export type RootStackParamList = {
+  Auth: undefined;
   MainTabs: undefined;
   Scanner: undefined;
   ProductResult: { product: Product };
