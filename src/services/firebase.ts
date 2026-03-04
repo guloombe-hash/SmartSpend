@@ -9,15 +9,17 @@ import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { FIREBASE_CONFIG } from '../constants/theme';
 
+const hasValidConfig = Boolean(FIREBASE_CONFIG.apiKey && FIREBASE_CONFIG.projectId);
+
 // Initialize Firebase (prevent duplicate initialization)
-const app = getApps().length === 0
-  ? initializeApp(FIREBASE_CONFIG)
-  : getApps()[0];
+const app = hasValidConfig
+  ? (getApps().length === 0 ? initializeApp(FIREBASE_CONFIG) : getApps()[0])
+  : null;
 
-// Auth instance
-export const auth = getAuth(app);
+// Auth & Firestore instances (null when Firebase is not configured)
+export const auth = app ? getAuth(app) : (null as any);
+export const db = app ? getFirestore(app) : (null as any);
 
-// Firestore database
-export const db = getFirestore(app);
+export const isFirebaseConfigured = hasValidConfig;
 
 export default app;

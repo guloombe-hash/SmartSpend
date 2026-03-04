@@ -23,7 +23,7 @@ import { useStore } from '../services/store';
 type AuthMode = 'login' | 'signup';
 
 export default function AuthScreen() {
-  const { signIn, signUp, signInWithGoogle, isAuthLoading } = useStore();
+  const { signIn, signUp, signInWithGoogle, skipLogin, isAuthLoading } = useStore();
   const [mode, setMode] = useState<AuthMode>('login');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -207,6 +207,11 @@ export default function AuthScreen() {
             <Text style={styles.socialText}>Continue with Apple</Text>
           </TouchableOpacity>
         )}
+
+        {/* Skip Login */}
+        <TouchableOpacity onPress={skipLogin} style={styles.skipBtn} activeOpacity={0.7}>
+          <Text style={styles.skipText}>Skip — Try Demo Mode</Text>
+        </TouchableOpacity>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -369,5 +374,18 @@ const styles = StyleSheet.create({
     fontSize: FONT_SIZE.base,
     ...FONTS.subheading,
     color: COLORS.text.secondary,
+  },
+
+  // Skip
+  skipBtn: {
+    marginTop: SPACING.xl,
+    paddingVertical: SPACING.md,
+    alignItems: 'center',
+  },
+  skipText: {
+    fontSize: FONT_SIZE.base,
+    color: COLORS.text.muted,
+    ...FONTS.caption,
+    textDecorationLine: 'underline',
   },
 });

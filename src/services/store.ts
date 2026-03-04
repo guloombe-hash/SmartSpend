@@ -21,7 +21,7 @@ import { Product, User, UserGoal, ScanHistoryItem, GoalTemplate } from '../types
 import { lookupProduct } from '../services/productLookup';
 import { lookupProductByURL } from '../services/urlLookup';
 import { lookupProductByPhoto } from '../services/photoLookup';
-import { auth } from '../services/firebase';
+import { auth, isFirebaseConfigured } from '../services/firebase';
 import {
   syncUserToFirestore,
   loadUserFromFirestore,
@@ -76,6 +76,7 @@ interface AppState {
   signUp: (email: string, password: string, name: string) => Promise<void>;
   signOut: () => Promise<void>;
   signInWithGoogle: () => Promise<void>;
+  skipLogin: () => void;
   initAuthListener: () => () => void;
 
   // Scan Actions
@@ -117,6 +118,10 @@ export const useStore = create<AppState>()(
 
       // ─── Auth: Listen for auth state changes ───
       initAuthListener: () => {
+        if (!isFirebaseConfigured) {
+          set({ isAuthInitialized: true });
+          return () => {};
+        }
         const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
           if (firebaseUser) {
             // User is signed in — load data from Firestore
@@ -196,6 +201,41 @@ export const useStore = create<AppState>()(
         // with Google OAuth Client ID. This is a placeholder that will work
         // once the Google Cloud Console is configured.
         throw new Error('Google Sign-In requires OAuth configuration. Please use email login.');
+      },
+
+      // ─── Auth: Skip Login (Demo Mode) ───
+      skipLogin: () => {
+        const demoUser: User = {
+          id: 'demo_user',
+          name: 'Demo User',
+          email: 'demo@smartspend.app',
+          monthlyBudget: 3000,
+          spent: 847.5,
+          goals: [
+            {
+              id: 'demo_goal_1',
+              title: 'Japan Trip',
+              icon: '🗼',
+              targetAmount: 4500,
+              savedAmount: 1280,
+              createdAt: '2025-12-01T00:00:00Z',
+            },
+            {
+              id: 'demo_goal_2',
+              title: 'Emergency Fund',
+              icon: '🛡️',
+              targetAmount: 5000,
+              savedAmount: 3200,
+              createdAt: '2025-10-15T00:00:00Z',
+            },
+          ],
+          scanHistory: [],
+        };
+        set({
+          authUser: { uid: 'demo_user' } as any,
+          user: demoUser,
+          isAuthInitialized: true,
+        });
       },
 
       // ─── Barcode Scan ───
